@@ -1,0 +1,180 @@
+#C++ Program which converts given data labels from UCSC to data labels for YOLOV8
+
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <regex>
+
+using namespace std;
+
+// Storing the path to access data_labels.txt relative to where I am (Code)
+string dataLabelInputPath = "../Metadata/data_labels.txt";
+
+// Stroing the path to access ImageDimensions.txt relative to where I am (Code)
+string imageDimensionInputPath = "../Metadata/ImageDimensions.txt";
+
+// Storing the path to place new data labels relative to where I am (Code)
+string outputPathYoloLabels = "../YoloDataLabels/";
+
+// Structure for array elements
+struct node{
+    string filename;
+    int pixelX;
+    int pixelY;
+};
+
+// Functions
+void extractDimensions(vector<node> &dimensionsList);
+void convertToYolo(node package, double x1, double x2, double y1, double y2, string result);
+void outputConvertedFile(string filename, double width, double height, double centerX, double centerY, string result);
+
+int main(){
+
+    // inputFileData accesses data_labels.txt using the stored path
+    ifstream inputFileData(dataLabelInputPath);
+
+    // Variables 
+    string filenameDataLabel, X1, X2, Y1, Y2, sample, number, result;
+    int fileNumber;
+    double dX1, dX2, dY1, dY2;
+    vector<node> dimensionsList;
+    node package;
+
+    extractDimensions(dimensionsList);
+
+    // If the file cannot be opened then there is an error message
+    if(!inputFileData){
+        cout << "Error with opening data file\n";
+        exit(EXIT_FAILURE);
+    }
+
+    // Reads each line of the data_labels.txt file and stores relevant information in variables
+    while(getline(inputFileData, filenameDataLabel, ',')){
+        getline(inputFileData, X1, ',');
+        getline(inputFileData, Y1, ',');
+        getline(inputFileData, X2, ',');
+        getline(inputFileData, Y2, ',');
+        inputFileData >> result;
+
+        // Convert strings to double type
+        dX1 = stod(X1);
+        dX2 = stod(X2);
+        dY1 = stod(Y1);
+        dY2 = stod(Y2);
+
+        // This pattern searches for digits 0-9 occuring once or more in a row
+        regex pattern("\\d+");
+        // smatch is part of regex library
+        smatch extract;
+        // regex_search uses the pattern and stores the result in extract
+        // HOWEVER it its type is sub_match objects(regex jargon)
+        // Therefore we have to convert to a string then we can convert to an int
+        if(regex_search(filenameDataLabel, extract, pattern)){
+            fileNumber = stoi(extract.str());
+        }
+
+        // Search for the dimension using the searchDimension function with the fileNumber as the search
+        package = dimensionsList.at(fileNumber - 1);
+
+        //Perform math calculations to convert to Yolo format
+        convertToYolo(package, dX1, dX2, dY1, dY2, result);
+    }
+
+    inputFileData.close();
+}
+
+/* 
+Function goes through each line of the sorted txt file "ImageDimensions" and extracts filename, pixelX, pixelY.
+Stores the extracted data in a node(structure) which is then pushed into the vector "dimensionsList".
+Does not return a value but does edit the parameter reference variable.
+*/
+void extractDimensions(vector<node> &dimensionsList){
+    ifstream inputFileDimensions(imageDimensionInputPath);
+
+    string name, X, Y;
+    node element;
+
+    if(!inputFileDimensions){
+        cout << "Error opening dimensions file\n";
+        exit(EXIT_FAILURE);
+    }
+
+    while(getline(inputFileDimensions, name, ',')){
+        getline(inputFileDimensions, X, ',');
+        inputFileDimensions >> Y;
+
+        element.filename = name;
+        element.pixelX = stoi(X);
+        element.pixelY = stoi(Y);
+
+        dimensionsList.push_back(element);
+    }
+
+    inputFileDimensions.close();
+}
+
+/*
+Function performs mathematical calucations to covert the 2 inputted coordinates into the width, height, and center coordinates of box.
+Once math is performed, "outputConvertedFile" is called to output the information in new txt files with YOLO format. 
+Result(rip or not_rip) is passed through "convertToYolo" in order to be a paramter of "outputConvertedFile".
+*/
+void convertToYolo(node package, double x1, double x2, double y1, double y2, string result){
+    string filename;
+    int imageWidth, imageHeight;
+    double centerX, centerY, width, height;
+
+    filename = package.filename;
+    imageWidth = package.pixelX;
+    imageHeight = package.pixelY;
+
+    width = x2 - x1;
+    height = y2 - y1;
+
+    centerY = (y1 + (height/2)) / imageHeight;
+    centerX = (x1 + (width/2)) / imageWidth;
+
+    width = width / imageWidth;
+    height = height / imageHeight;
+
+    outputConvertedFile(filename, width, height, centerX, centerY, result);
+
+}
+
+/*
+Function follows the path to the "YoloDataLabels" directory, changes the extension of the filename extracted from the node to txt.
+Updated filename is then concatenated to the path, where output_dir will then write to. 
+Follwed format of YOLO, the file is then closed for next use.
+
+NOTE:
+** Since getline was used to grab the filename in "extractDimensions" a newline is also picked up before the actual filename causing a "?"
+mark to appear in the final output filename. To fix, there is an if statement to ensure there is a "\n" in which case it is erased. **
+
+*/
+
+void outputConvertedFile(string filename, double width, double height, double centerX, double centerY, string result){
+    int foundIndex;
+    string newPath;
+    
+    // Used copiedPath to not tamper with the original path, since we are editing the path name.
+    string copiedPath = outputPathYoloLabels;
+
+    foundIndex = filename.find(".png");
+    filename.replace(foundIndex, 4, ".txt");
+
+    if(filename.at(0) == '\n'){
+        filename.erase(0,1);
+    }
+
+    newPath = copiedPath + filename;
+    ofstream output_dir(newPath);
+
+    if(output_dir.is_open()){
+        if(result == "rip"){
+            output_dir << 0 << " " << centerX << " " << centerY << " " << width << " " << height << endl;
+        }
+        else{
+            output_dir << 1 << " " << centerX << " " << centerY << " " << width << " " << height << endl;
+        }
+        output_dir.close();
+    }
+}
