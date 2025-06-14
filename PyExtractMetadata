@@ -1,0 +1,48 @@
+# Written by: Omar Haq
+
+from PIL import Image
+import os
+import re
+
+# Ask user for input filename
+inputFilename = input("Enter input filename: ")
+
+# Ask user for new output filename
+outputFilename = input("Enter the name of the file you want the output stored in: ")
+
+# Path to go to Images from Code
+input_dir = "../Images/" + inputFilename
+
+# Path to go to Metadata and name the new file from Code
+output_file = "../Metadata/" + outputFilename
+
+# function to extract the numbers out of the filename and sort them from ascending order
+def extract_number(filename):
+    # extracts the number from each filename and returns a list which has the number stored
+    numbers = re.findall(r'\d+',filename)
+    # joins the occurences of the numbers in the filename into one string 
+    return int(numbers[0]) if numbers else 0
+
+with open(output_file, "w") as f:
+    # Iterate over each file in the input directory
+    # sorted(gives the entire list of filenames, tells sorted how to sort list of file names based on number extracted function)
+    # by default sorted works in ascending order
+    for filename in sorted(os.listdir(input_dir), key=extract_number):
+        # Check if the file is a PNG file
+        if filename.endswith(".png"):
+            # Create path relative to where I (code) am
+            image_path = os.path.join(input_dir, filename)
+            # Using the path just made, create an object of Image
+            thisImage = Image.open(image_path)
+
+            # Extract the metadata and store it in metadata variables using built in function "info"
+            metadata = thisImage.size
+            metadataX = metadata[0]
+            metadataY = metadata[1]
+
+            # Write the metadata to the text file
+            f.write(f"{filename}, {metadataX}, {metadataY}\n")
+
+            # Close the image file
+            thisImage.close()
+
