@@ -1,4 +1,4 @@
-# Written by: Omar Haq
+# Program extracts metadata from dataset of images to reconfigure the data labels so it is yolov8 compliant
 
 from PIL import Image
 import os
